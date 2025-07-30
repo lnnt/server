@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -47,7 +46,6 @@ func main() {
 		c.Stream(func(w io.Writer) bool {
 			// Stream message to a client from a message channel
 			if msg, ok := <-clientChan; ok {
-				fmt.Println(msg)
 				c.SSEvent("message", msg)
 				return true
 			}

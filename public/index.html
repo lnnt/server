@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
     <title>Server Sent Event</title>
 </head>
 
@@ -14,7 +15,7 @@
     // EventSource object of JavaScript listens to the streaming events from our go server and prints the message.
     let stream = new EventSource("/stream");
     stream.addEventListener("message", function(e){
-        document.querySelector('.event-data').innerHTML += `<pre>${e.data}</pre>`
+        document.querySelector('.event-data').innerHTML += `<pre>${new Date()}\n${e.data}\n</pre>`
     });
 </script>
 
