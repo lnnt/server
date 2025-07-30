@@ -1,11 +1,11 @@
-# Go Gin Web Server
+# Server Sent Event
 
-This repo can be used as a starting point to deploy [Go](https://golang.org/) web applications on Render.
+It is Way to send events from server to clients.
 
-It is based on the [realtime chat](https://github.com/gin-gonic/examples/tree/master/realtime-advanced) example powered by the [Gin](https://github.com/gin-gonic/gin) web framework.
+Here is Example for SSE with basic authentication using gin.
 
-The sample app is up at https://go-gin.onrender.com.
+## How to Run?
 
-## Deployment
+1. Run `go run main.go`
 
-See the guide at https://render.com/docs/deploy-go-gin.
+2. Open `http://127.0.0.1:8085` in browser and authorize with username and password given in main.go and see messages.
