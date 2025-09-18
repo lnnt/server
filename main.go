@@ -73,7 +73,7 @@ func main() {
 	// Parse Static files'
 	router.StaticFile("/", "./public/index.html")
 
-	log.Fatal(router.Run(":8085"))
+	log.Fatal(router.Run(":10000"))
 }
 
 // NewServer initialize event and Start processing requests
