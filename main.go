@@ -34,24 +34,43 @@ func main() {
 	// Initialize new streaming server
 	stream := NewServer()
 
-	router.GET("/stream", HeadersMiddleware(), stream.serveHTTP(), func(c *gin.Context) {
-		v, ok := c.Get("clientChan")
-		if !ok {
-			return
-		}
-		clientChan, ok := v.(ClientChan)
-		if !ok {
-			return
-		}
-		c.Stream(func(w io.Writer) bool {
-			// Stream message to a client from a message channel
-			if msg, ok := <-clientChan; ok {
+	router.GET("/stream", func(c *gin.Context) {
+		w := c.Writer
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no") // 即使没用 Nginx，这也是好习惯
+
+		// 关键：显式发送 200 状态码
+		c.Status(http.StatusOK)
+
+		// 关键：强制刷新 Header 到网络栈
+		w.Flush()
+
+		clientChan := make(ClientChan)
+		stream.NewClients <- clientChan
+
+		defer func() {
+			stream.ClosedClients <- clientChan
+		}()
+
+		// 使用 Context 监听断开
+		ctx := c.Request.Context()
+
+		c.Stream(func(iw io.Writer) bool {
+			select {
+			case <-ctx.Done():
+				return false
+			case msg, ok := <-clientChan:
+				if !ok {
+					return false
+				}
 				c.SSEvent("message", msg)
 				return true
 			}
-			return false
 		})
 	})
+
 	router.POST("/", func(c *gin.Context) {
 		data, err := c.GetRawData()
 		if err != nil {
@@ -59,13 +78,6 @@ func main() {
 			c.String(http.StatusInternalServerError, "Error reading request body: %v", err)
 			return
 		}
-
-		//var out bytes.Buffer
-		//if err = json.Indent(&out, data, "", "\t"); err != nil {
-		//	log.Printf("Error parsing request body: %v", err)
-		//	c.String(http.StatusInternalServerError, "Error parsing request body: %v", err)
-		//	return
-		//}
 
 		stream.Message <- string(pretty.Pretty(data))
 	})
@@ -140,16 +152,6 @@ func (stream *Event) serveHTTP() gin.HandlerFunc {
 
 		c.Set("clientChan", clientChan)
 
-		c.Next()
-	}
-}
-
-func HeadersMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Writer.Header().Set("Content-Type", "text/event-stream")
-		c.Writer.Header().Set("Cache-Control", "no-cache")
-		c.Writer.Header().Set("Connection", "keep-alive")
-		c.Writer.Header().Set("Transfer-Encoding", "chunked")
 		c.Next()
 	}
 }

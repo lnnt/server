@@ -1,22 +1,57 @@
 <!doctype html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Server Sent Event</title>
+    <title>Server Sent Event Status</title>
+    <style>
+        .status-pill { padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        .connecting { background: #ffeaa7; color: #d63031; }
+        .open { background: #55efc4; color: #00b894; }
+        .closed { background: #dfe6e9; color: #636e72; }
+    </style>
 </head>
-
 <body>
+<div>
+    当前连接状态: <span id="status" class="status-pill">初始化...</span>
+    (代码值: <span id="status-code">-</span>)
+</div>
+
+<hr>
 <div class="event-data"></div>
-</body>
 
 <script>
-    // EventSource object of JavaScript listens to the streaming events from our go server and prints the message.
+    const statusEl = document.getElementById('status');
+    const codeEl = document.getElementById('status-code');
+    const eventData = document.querySelector('.event-data');
+
+    // 更新状态的辅助函数
+    function updateStatus(stream) {
+        const states = ['CONNECTING (正在连接)', 'OPEN (已连接)', 'CLOSED (已关闭)'];
+        const classes = ['connecting', 'open', 'closed'];
+
+        const state = stream.readyState;
+        statusEl.textContent = states[state];
+        statusEl.className = 'status-pill ' + classes[state];
+        codeEl.textContent = state;
+    }
+
     let stream = new EventSource("/stream");
+
+    // 初始状态
+    updateStatus(stream);
+
+    // 监听连接打开
+    stream.onopen = () => updateStatus(stream);
+
+    // 监听错误/重连（当连接丢失时，状态会变为 0 并尝试重连）
+    stream.onerror = () => updateStatus(stream);
+
+    // 监听消息
     stream.addEventListener("message", function(e){
-        document.querySelector('.event-data').innerHTML += `<pre>${new Date()}\n${e.data}\n</pre>`
+        updateStatus(stream); // 接收消息时确认状态
+        eventData.innerHTML += `<pre>${new Date().toLocaleTimeString()}\n${e.data}\n</pre>`;
     });
 </script>
-
+</body>
 </html>
