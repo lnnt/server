@@ -78,7 +78,7 @@ func main() {
 		})
 	})
 
-	router.POST("/", func(c *gin.Context) {
+	router.POST("/*k", func(c *gin.Context) {
 		data, err := c.GetRawData()
 		if err != nil {
 			log.Printf("Error reading request body: %v", err)
