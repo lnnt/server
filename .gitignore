@@ -1,1 +1,16 @@
-app
+# 根目录默认全部忽略、按白名单放行:
+# 这样任何文件名的 go build 产物(裸跑 go build、自定义 -o 等)落在根目录都会被自动忽略。
+# 在根目录新增源文件/目录时,需要在下面补一行放行(根目录的 .go 文件已整体放行)。
+# 注意:内容级的兜底拦截在 .githooks/pre-commit,新 clone 需执行:
+#   git config core.hooksPath .githooks
+/*
+
+!/.gitignore
+!/.githooks/
+!/*.go
+!/LICENSE
+!/README.md
+!/build.sh
+!/go.mod
+!/go.sum
+!/resources/

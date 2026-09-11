@@ -1,0 +1,15 @@
+#!/bin/sh
+# 按文件内容(而非文件名)拦截编译产物:检查暂存文件的格式。
+# 启用方式(每个 clone 一次):git config core.hooksPath .githooks
+
+git diff --cached --name-only --diff-filter=ACM | while IFS= read -r f; do
+	[ -f "$f" ] || continue
+	case "$(file -b "$f")" in
+	*ELF* | *Mach-O* | *PE32* | *MS-DOS*)
+		echo "error: '$f' 是二进制可执行文件,禁止提交。" >&2
+		echo "       构建请用 ./build.sh(输出到 ./app),或 go build -o ./app ." >&2
+		echo "       (确需提交二进制时可 git commit --no-verify 绕过)" >&2
+		exit 1
+		;;
+	esac
+done

@@ -74,20 +74,41 @@ func roomPOST(c *gin.Context) {
 		"nick":    html.EscapeString(nick),
 		"message": html.EscapeString(message),
 	}
-	room(roomid).Submit(post)
+	submitMessage(roomid, post)
 	c.JSON(http.StatusOK, post)
 }
 
 func streamRoom(c *gin.Context) {
 	roomid := c.Param("roomid")
+	nick := presenceNick(c.Query("nick"))
 	listener := openListener(roomid)
+
+	addUser(roomid, nick)
+	// 逆序执行:先注销自己的监听,再广播移除后的最新列表给其余人。
+	defer removeUser(roomid, nick)
 	defer closeListener(roomid, listener)
 
 	c.Stream(func(w io.Writer) bool {
 		select {
-		case msg := <-listener:
-			c.SSEvent("message", msg)
+		case item := <-listener:
+			if feed, ok := item.(feedItem); ok {
+				c.SSEvent(feed.Kind, feed.Data)
+			}
+		case <-c.Request.Context().Done():
+			return false
 		}
 		return true
 	})
+}
+
+// presenceNick 与 roomGET 对 nick 的处理保持一致,
+// 未填 nick 的连接(还没加入聊天的访客)统一显示为 (anonymous)。
+func presenceNick(nick string) string {
+	if len(nick) < 2 {
+		return "(anonymous)"
+	}
+	if len(nick) > 13 {
+		return nick[0:12] + "..."
+	}
+	return nick
 }

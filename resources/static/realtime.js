@@ -32,8 +32,44 @@ function StartSSE(roomid) {
         alert('EventSource is not supported in this browser');
         return;
     }
-    const source = new EventSource('/stream/' + roomid);
+    const nick = new URLSearchParams(location.search).get('nick');
+    let url = '/stream/' + encodeURIComponent(roomid);
+    if (nick) url += '?nick=' + encodeURIComponent(nick);
+
+    const source = new EventSource(url);
     source.addEventListener('message', newChatMessage, false);
+    source.addEventListener('presence', onPresence, false);
+}
+
+function onPresence(e) {
+    const users = JSON.parse(e.data);
+    const list = document.getElementById('users');
+    if (!list) return;
+
+    list.innerHTML = '';
+    let total = 0;
+    users.forEach(u => {
+        total += u.count;
+
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex justify-content-between align-items-center py-1';
+
+        const name = document.createElement('span');
+        name.textContent = u.nick;
+        li.appendChild(name);
+
+        if (u.count > 1) {
+            const badge = document.createElement('span');
+            badge.className = 'badge text-bg-secondary';
+            badge.textContent = '×' + u.count;
+            li.appendChild(badge);
+        }
+
+        list.appendChild(li);
+    });
+
+    const count = document.getElementById('users-count');
+    if (count) count.textContent = '(' + total + ')';
 }
 
 function newChatMessage(e) {
