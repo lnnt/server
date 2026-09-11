@@ -1,5 +1,8 @@
+// 全局图表实例
+let heapChart, mallocsChart, messagesChart;
+
 function StartRealtime(roomid, timestamp) {
-    StartEpoch(timestamp);
+    StartCharts(timestamp);
     StartSSE(roomid);
     StartForm();
 }
@@ -7,21 +10,18 @@ function StartRealtime(roomid, timestamp) {
 function StartForm() {
     const messageInput = document.getElementById('chat-message');
     const form = document.getElementById('chat-form');
-
     if (!messageInput || !form) return;
 
     messageInput.focus();
 
-    form.addEventListener('submit', async function (e) {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
-
         const formData = new FormData(form);
 
         try {
             await fetch(form.action, {
                 method: 'POST',
-                body: formData,
-                // 不强制设置 Content-Type，让浏览器自动处理 multipart/form-data
+                body: formData
             });
             messageInput.value = '';
             messageInput.focus();
@@ -31,87 +31,108 @@ function StartForm() {
     });
 }
 
-function StartEpoch(timestamp) {
+function StartCharts(timestamp) {
     const windowSize = 60;
-    const height = 200;
-    const defaultData = histogram(windowSize, timestamp);
+    const labels = [];
+    const zeros = [];
 
-    // 注意：Epoch 仍通过 jQuery 风格初始化。若页面完全无 jQuery，
-    // 需要额外引入一个极简 jQuery 兼容层或替换为现代图表库。
-    // 这里保留原 Epoch 调用方式（假设页面仍能提供 $ 或你自行适配）。
-    window.heapChart = $('#heapChart').epoch({
-        type: 'time.area',
-        axes: ['bottom', 'left'],
-        height: height,
-        historySize: 10,
-        data: [
-            { values: defaultData },
-            { values: defaultData }
-        ]
+    for (let i = 0; i < windowSize; i++) {
+        labels.push(timestamp - windowSize + i);
+        zeros.push(0);
+    }
+
+    // 公共配置
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        scales: {
+            x: {
+                display: true,
+                ticks: { maxTicksLimit: 6 }
+            },
+            y: {
+                beginAtZero: true
+            }
+        },
+        plugins: {
+            legend: { display: false }
+        }
+    };
+
+    // Messages 图表
+    messagesChart = new Chart(document.getElementById('messagesChart'), {
+        type: 'line',
+        data: {
+            labels: [...labels],
+            datasets: [
+                { label: 'Users', data: [...zeros], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', fill: true, tension: 0.3 },
+                { label: 'Inbound', data: [...zeros], borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,0.1)', fill: true, tension: 0.3 },
+                { label: 'Outbound', data: [...zeros], borderColor: '#198754', backgroundColor: 'rgba(25,135,84,0.1)', fill: true, tension: 0.3 }
+            ]
+        },
+        options: commonOptions
     });
 
-    window.mallocsChart = $('#mallocsChart').epoch({
-        type: 'time.area',
-        axes: ['bottom', 'left'],
-        height: height,
-        historySize: 10,
-        data: [
-            { values: defaultData },
-            { values: defaultData }
-        ]
+    // Heap 图表
+    heapChart = new Chart(document.getElementById('heapChart'), {
+        type: 'line',
+        data: {
+            labels: [...labels],
+            datasets: [
+                { label: 'Heap', data: [...zeros], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.15)', fill: true, tension: 0.3 },
+                { label: 'Stack', data: [...zeros], borderColor: '#6ea8fe', backgroundColor: 'rgba(110,168,254,0.15)', fill: true, tension: 0.3 }
+            ]
+        },
+        options: commonOptions
     });
 
-    window.messagesChart = $('#messagesChart').epoch({
-        type: 'time.line',
-        axes: ['bottom', 'left'],
-        height: 240,
-        historySize: 10,
-        data: [
-            { values: defaultData },
-            { values: defaultData },
-            { values: defaultData }
-        ]
+    // Mallocs 图表
+    mallocsChart = new Chart(document.getElementById('mallocsChart'), {
+        type: 'line',
+        data: {
+            labels: [...labels],
+            datasets: [
+                { label: 'Mallocs', data: [...zeros], borderColor: '#6610f2', backgroundColor: 'rgba(102,16,242,0.15)', fill: true, tension: 0.3 },
+                { label: 'Frees', data: [...zeros], borderColor: '#6f42c1', backgroundColor: 'rgba(111,66,193,0.15)', fill: true, tension: 0.3 }
+            ]
+        },
+        options: commonOptions
     });
 }
 
 function StartSSE(roomid) {
     if (!window.EventSource) {
-        alert('EventSource is not enabled in this browser');
+        alert('EventSource is not supported in this browser');
         return;
     }
     const source = new EventSource('/stream/' + roomid);
     source.addEventListener('message', newChatMessage, false);
-    source.addEventListener('stats', stats, false);
+    source.addEventListener('stats', onStats, false);
 }
 
-function stats(e) {
-    const data = parseJSONStats(e.data);
-    if (window.heapChart) heapChart.push(data.heap);
-    if (window.mallocsChart) mallocsChart.push(data.mallocs);
-    if (window.messagesChart) messagesChart.push(data.messages);
+function onStats(e) {
+    const data = JSON.parse(e.data);
+    const ts = data.timestamp;
+
+    // 推入新数据并保持窗口大小
+    pushChartData(messagesChart, ts, [data.Connected, data.Inbound, data.Outbound]);
+    pushChartData(heapChart, ts, [data.HeapInuse, data.StackInuse]);
+    pushChartData(mallocsChart, ts, [data.Mallocs, data.Frees]);
 }
 
-function parseJSONStats(raw) {
-    const data = JSON.parse(raw);
-    const timestamp = data.timestamp;
+function pushChartData(chart, timestamp, values) {
+    if (!chart) return;
 
-    const heap = [
-        { time: timestamp, y: data.HeapInuse },
-        { time: timestamp, y: data.StackInuse }
-    ];
+    chart.data.labels.push(timestamp);
+    chart.data.labels.shift();
 
-    const mallocs = [
-        { time: timestamp, y: data.Mallocs },
-        { time: timestamp, y: data.Frees }
-    ];
+    values.forEach((v, i) => {
+        chart.data.datasets[i].data.push(v);
+        chart.data.datasets[i].data.shift();
+    });
 
-    const messages = [
-        { time: timestamp, y: data.Connected },
-        { time: timestamp, y: data.Inbound },
-        { time: timestamp, y: data.Outbound }
-    ];
-
-    return { heap, mallocs, messages };
+    chart.update('none'); // 无动画更新，更流畅
 }
 
 function newChatMessage(e) {
@@ -120,55 +141,41 @@ function newChatMessage(e) {
     const message = data.message;
     const style = rowStyle(nick);
 
-    const html = `<tr class="${style}"><td>${escapeHtml(nick)}</td><td>${escapeHtml(message)}</td></tr>`;
+    const tr = document.createElement('tr');
+    tr.className = style;
+    tr.innerHTML = `<td>${escapeHtml(nick)}</td><td>${escapeHtml(message)}</td>`;
 
     const chat = document.getElementById('chat');
     const scroll = document.getElementById('chat-scroll');
 
-    if (chat) {
-        chat.insertAdjacentHTML('beforeend', html);
-    }
-    if (scroll) {
-        scroll.scrollTop = scroll.scrollHeight;
-    }
+    if (chat) chat.appendChild(tr);
+    if (scroll) scroll.scrollTop = scroll.scrollHeight;
 }
-
-function histogram(windowSize, timestamp) {
-    const entries = new Array(windowSize);
-    for (let i = 0; i < windowSize; i++) {
-        entries[i] = { time: (timestamp - windowSize + i - 1), y: 0 };
-    }
-    return entries;
-}
-
-const entityMap = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-    '/': '&#x2F;'
-};
 
 function rowStyle(nick) {
-    const classes = ['active', 'success', 'info', 'warning', 'danger'];
-    const index = hashCode(nick) % 5;
-    return classes[index];
+    const classes = ['table-active', 'table-success', 'table-info', 'table-warning', 'table-danger'];
+    return classes[hashCode(nick) % 5];
 }
 
 function hashCode(s) {
     return Math.abs(
-        s.split('').reduce(function (a, b) {
+        s.split('').reduce((a, b) => {
             a = ((a << 5) - a) + b.charCodeAt(0);
             return a & a;
         }, 0)
     );
 }
 
-function escapeHtml(string) {
-    return String(string).replace(/[&<>"'\/]/g, function (s) {
-        return entityMap[s];
-    });
+function escapeHtml(str) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '/': '&#x2F;'
+    };
+    return String(str).replace(/[&<>"'\/]/g, s => map[s]);
 }
 
 window.StartRealtime = StartRealtime;
