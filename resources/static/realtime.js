@@ -1,8 +1,4 @@
-// 全局图表实例
-let heapChart, mallocsChart, messagesChart;
-
-function StartRealtime(roomid, timestamp) {
-    StartCharts(timestamp);
+function StartRealtime(roomid) {
     StartSSE(roomid);
     StartForm();
 }
@@ -31,76 +27,6 @@ function StartForm() {
     });
 }
 
-function StartCharts(timestamp) {
-    const windowSize = 60;
-    const labels = [];
-    const zeros = [];
-
-    for (let i = 0; i < windowSize; i++) {
-        labels.push(timestamp - windowSize + i);
-        zeros.push(0);
-    }
-
-    // 公共配置
-    const commonOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        scales: {
-            x: {
-                display: true,
-                ticks: { maxTicksLimit: 6 }
-            },
-            y: {
-                beginAtZero: true
-            }
-        },
-        plugins: {
-            legend: { display: false }
-        }
-    };
-
-    // Messages 图表
-    messagesChart = new Chart(document.getElementById('messagesChart'), {
-        type: 'line',
-        data: {
-            labels: [...labels],
-            datasets: [
-                { label: 'Users', data: [...zeros], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.1)', fill: true, tension: 0.3 },
-                { label: 'Inbound', data: [...zeros], borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,0.1)', fill: true, tension: 0.3 },
-                { label: 'Outbound', data: [...zeros], borderColor: '#198754', backgroundColor: 'rgba(25,135,84,0.1)', fill: true, tension: 0.3 }
-            ]
-        },
-        options: commonOptions
-    });
-
-    // Heap 图表
-    heapChart = new Chart(document.getElementById('heapChart'), {
-        type: 'line',
-        data: {
-            labels: [...labels],
-            datasets: [
-                { label: 'Heap', data: [...zeros], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.15)', fill: true, tension: 0.3 },
-                { label: 'Stack', data: [...zeros], borderColor: '#6ea8fe', backgroundColor: 'rgba(110,168,254,0.15)', fill: true, tension: 0.3 }
-            ]
-        },
-        options: commonOptions
-    });
-
-    // Mallocs 图表
-    mallocsChart = new Chart(document.getElementById('mallocsChart'), {
-        type: 'line',
-        data: {
-            labels: [...labels],
-            datasets: [
-                { label: 'Mallocs', data: [...zeros], borderColor: '#6610f2', backgroundColor: 'rgba(102,16,242,0.15)', fill: true, tension: 0.3 },
-                { label: 'Frees', data: [...zeros], borderColor: '#6f42c1', backgroundColor: 'rgba(111,66,193,0.15)', fill: true, tension: 0.3 }
-            ]
-        },
-        options: commonOptions
-    });
-}
-
 function StartSSE(roomid) {
     if (!window.EventSource) {
         alert('EventSource is not supported in this browser');
@@ -108,31 +34,6 @@ function StartSSE(roomid) {
     }
     const source = new EventSource('/stream/' + roomid);
     source.addEventListener('message', newChatMessage, false);
-    source.addEventListener('stats', onStats, false);
-}
-
-function onStats(e) {
-    const data = JSON.parse(e.data);
-    const ts = data.timestamp;
-
-    // 推入新数据并保持窗口大小
-    pushChartData(messagesChart, ts, [data.Connected, data.Inbound, data.Outbound]);
-    pushChartData(heapChart, ts, [data.HeapInuse, data.StackInuse]);
-    pushChartData(mallocsChart, ts, [data.Mallocs, data.Frees]);
-}
-
-function pushChartData(chart, timestamp, values) {
-    if (!chart) return;
-
-    chart.data.labels.push(timestamp);
-    chart.data.labels.shift();
-
-    values.forEach((v, i) => {
-        chart.data.datasets[i].data.push(v);
-        chart.data.datasets[i].data.shift();
-    });
-
-    chart.update('none'); // 无动画更新，更流畅
 }
 
 function newChatMessage(e) {

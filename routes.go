@@ -6,14 +6,22 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 )
 
+var (
+	mutexIP sync.Mutex
+	ipHits  = map[string]int{}
+)
+
 func rateLimit(c *gin.Context) {
 	ip := c.ClientIP()
-	value := int(ips.Add(ip, 1))
+	mutexIP.Lock()
+	ipHits[ip]++
+	value := ipHits[ip]
+	mutexIP.Unlock()
 	if value%50 == 0 {
 		fmt.Printf("ip: %s, count: %d\n", ip, value)
 	}
@@ -40,9 +48,8 @@ func roomGET(c *gin.Context) {
 		nick = nick[0:12] + "..."
 	}
 	c.HTML(http.StatusOK, "room_login.templ.html", gin.H{
-		"roomid":    roomid,
-		"nick":      nick,
-		"timestamp": time.Now().Unix(),
+		"roomid": roomid,
+		"nick":   nick,
 	})
 
 }
@@ -67,7 +74,6 @@ func roomPOST(c *gin.Context) {
 		"nick":    html.EscapeString(nick),
 		"message": html.EscapeString(message),
 	}
-	messages.Add("inbound", 1)
 	room(roomid).Submit(post)
 	c.JSON(http.StatusOK, post)
 }
@@ -75,21 +81,12 @@ func roomPOST(c *gin.Context) {
 func streamRoom(c *gin.Context) {
 	roomid := c.Param("roomid")
 	listener := openListener(roomid)
-	ticker := time.NewTicker(1 * time.Second)
-	users.Add("connected", 1)
-	defer func() {
-		closeListener(roomid, listener)
-		ticker.Stop()
-		users.Add("disconnected", 1)
-	}()
+	defer closeListener(roomid, listener)
 
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case msg := <-listener:
-			messages.Add("outbound", 1)
 			c.SSEvent("message", msg)
-		case <-ticker.C:
-			c.SSEvent("stats", Stats())
 		}
 		return true
 	})

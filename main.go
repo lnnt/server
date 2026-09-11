@@ -11,7 +11,6 @@ import (
 
 func main() {
 	ConfigRuntime()
-	StartWorkers()
 	StartGin()
 }
 
@@ -20,11 +19,6 @@ func ConfigRuntime() {
 	nuCPU := runtime.NumCPU()
 	runtime.GOMAXPROCS(nuCPU)
 	fmt.Printf("Running with %d CPUs\n", nuCPU)
-}
-
-// StartWorkers start starsWorker by goroutine.
-func StartWorkers() {
-	go statsWorker()
 }
 
 // StartGin starts gin web server with setting router.
@@ -45,6 +39,6 @@ func StartGin() {
 		port = "8080"
 	}
 	if err := router.Run(":" + port); err != nil {
-        log.Panicf("error: %s", err)
+		log.Panicf("error: %s", err)
 	}
 }
