@@ -15,10 +15,17 @@ function StartForm() {
         const formData = new FormData(form);
 
         try {
-            await fetch(form.action, {
+            const resp = await fetch(form.action, {
                 method: 'POST',
                 body: formData
             });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => null);
+                // 发送失败(比如 @ 的人不在线)时保留输入,方便修改后重发。
+                alert(err && err.error ? err.error : '发送失败');
+                messageInput.focus();
+                return;
+            }
             messageInput.value = '';
             messageInput.focus();
         } catch (err) {
@@ -56,6 +63,7 @@ function onPresence(e) {
 
         const name = document.createElement('span');
         name.textContent = u.nick;
+        makeDMTrigger(name, u.nick);
         li.appendChild(name);
 
         if (u.count > 1) {
@@ -72,15 +80,36 @@ function onPresence(e) {
     if (count) count.textContent = '(' + total + ')';
 }
 
+// makeDMTrigger 让在线用户名可点击:在输入框开头插入 @昵称,变成私聊。
+function makeDMTrigger(el, nick) {
+    const input = document.getElementById('chat-message');
+    if (!input || nick === '(anonymous)') return;
+
+    el.style.cursor = 'pointer';
+    el.title = '私聊 ' + nick;
+    el.classList.add('fw-semibold');
+    el.addEventListener('click', () => {
+        const prefix = '@' + nick + ' ';
+        if (!input.value.startsWith(prefix)) {
+            input.value = prefix + input.value;
+        }
+        input.focus();
+    });
+}
+
 function newChatMessage(e) {
     const data = JSON.parse(e.data);
     const nick = data.nick;
     const message = data.message;
-    const style = rowStyle(nick);
+    const isPrivate = data.private === true;
+    const style = isPrivate ? 'table-primary' : rowStyle(nick);
+    const badge = isPrivate
+        ? `<span class="badge text-bg-dark me-1" title="只有你和 @${escapeHtml(data.to)} 可见">私信</span>`
+        : '';
 
     const tr = document.createElement('tr');
     tr.className = style;
-    tr.innerHTML = `<td>${escapeHtml(nick)}</td><td>${escapeHtml(message)}</td>`;
+    tr.innerHTML = `<td>${badge}${escapeHtml(nick)}</td><td>${escapeHtml(message)}</td>`;
 
     const chat = document.getElementById('chat');
     const scroll = document.getElementById('chat-scroll');

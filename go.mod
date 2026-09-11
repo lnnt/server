@@ -2,10 +2,7 @@ module github.com/render-examples/go-gin-web-server
 
 go 1.26.0
 
-require (
-	github.com/dustin/go-broadcast v0.0.0-20211018055107-71439988bd91
-	github.com/gin-gonic/gin v1.12.0
-)
+require github.com/gin-gonic/gin v1.12.0
 
 require (
 	github.com/bytedance/gopkg v0.1.4 // indirect
